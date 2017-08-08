@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 
+from zoo import vgg8_gap as inference
 import model
 from pipeline import inputs
 from eval_utils import ROC
@@ -25,7 +26,7 @@ def eval_once(ckpt_path,
                 dataset = inputs(data_path_list=tfrecords_path, batch_size=500, num_epochs=1)
         with tf.name_scope('dropout'):
             keep_prob = tf.placeholder(tf.float32)
-        logits = model.inference(dataset['image'], keep_prob)
+        logits = inference(images=dataset['image'], keep_prob=keep_prob)
         prediction = tf.nn.softmax(logits)
         loss = model.loss(logits, dataset['label'])
         accuracy = model.evaluation(logits, dataset['label'])
@@ -36,8 +37,7 @@ def eval_once(ckpt_path,
             merged = tf.summary.merge_all()
             writer = tf.summary.FileWriter(tfevents_dir)
             saver = tf.train.Saver()
-            init_op = tf.group(tf.global_variables_initializer(),
-                               tf.local_variables_initializer())
+            init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             sess.run(init_op)
             saver.restore(sess, ckpt_path)
             # Start the queue runners.
@@ -56,14 +56,14 @@ def eval_once(ckpt_path,
             step = 0
             try:
                 while not coord.should_stop():
-                    labels_np, preds_np, loss_value, acc_value = sess.run(
-                        [dataset['label'], prediction, loss, accuracy],
+                    labels_np, preds_np, nMatchedJets_np, loss_value, acc_value = sess.run(
+                        [dataset['label'], prediction, dataset['nMatchedJets'], loss, accuracy],
                         feed_dict={keep_prob: 1.0}
                     )
                     # roc curve
                     roc.append_data(labels=labels_np[:, 0], preds=preds_np[:, 0])
                     # quark gluon histogram
-                    qg_histogram.fill(labels=labels_np, preds=preds_np)
+                    qg_histogram.fill(labels=labels_np, preds=preds_np, nMatchedJets=nMatchedJets_np)
                     if step % 20 == 0:
                         summary = sess.run(merged, feed_dict={keep_prob: 1.0})
                         writer.add_summary(summary, step)
@@ -85,11 +85,16 @@ def evaluate(log_dir,
     ckpt_list = ckpt_parser(log_dir.ckpt.path)
     for ckpt in ckpt_list:
         # on training set
+        subdname = 'step_%s' % str(ckpt['step'].zfill(6))
+        log_dir.tfevents.make_subdir(subdname)
+        subd = getattr(log_dir.tfevents, subdname)
+        subd.make_subdir('training')
+        subd.make_subdir('validation')
         eval_once(
             training_step=ckpt['step'],
             ckpt_path=ckpt['path'],
             tfrecords_path=training_data,
-            tfevents_dir=log_dir.tfevents.training.path,
+            tfevents_dir=subd.training.path,
             is_training_data=True,
             roc_dir=log_dir.roc.training.path,
             qg_histogram_dir=log_dir.qg_histogram.training.path,
@@ -99,7 +104,7 @@ def evaluate(log_dir,
             training_step=ckpt['step'],
             ckpt_path=ckpt['path'],
             tfrecords_path=validation_data,
-            tfevents_dir=log_dir.tfevents.validation.path,
+            tfevents_dir=subd.validation.path,
             is_training_data=False,
             roc_dir=log_dir.roc.validation.path,
             qg_histogram_dir=log_dir.qg_histogram.validation.path,

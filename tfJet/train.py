@@ -8,6 +8,7 @@ import time
 import tensorflow as tf
 import pandas as pd
 
+from zoo import vgg8_gap as inference
 import model
 from pipeline import inputs
 from utils import get_log_dir
@@ -39,7 +40,7 @@ def train(tfrecords_path,
             keep_prob = tf.placeholder(tf.float32)
 
         # Build a Graph that computes the logits predictions from the inference model.
-        logits = model.inference(dataset['image'], keep_prob)
+        logits = inference(dataset['image'], keep_prob)
         # Bulid a Graph that computes the softmax predictions
         # to computes ROC curves.
         prediction = tf.nn.softmax(logits)

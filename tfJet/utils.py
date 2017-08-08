@@ -35,9 +35,6 @@ class Directory(object):
         if creation:
             tf.gfile.MakeDirs(subdpath)
 
-    def __repr__(self):
-        return self.path
-
 
 def get_log_dir(dname, creation=True, logs_dpath='./logs'):
     # numbering
@@ -51,15 +48,17 @@ def get_log_dir(dname, creation=True, logs_dpath='./logs'):
         latest_num = int(latest_num) + 1
         dname = '%s_%s'% (dname, str(latest_num).zfill(2))
     dpath = os.path.join(logs_dpath, dname)
+
     # mkdir
     log = Directory(dpath)
     log.make_subdir('tfevents', creation)
     log.make_subdir('ckpt', creation)
     log.make_subdir('roc', creation)
     log.make_subdir('qg_histogram', creation)
-    for sub in [log.tfevents, log.roc, log.qg_histogram]:
+    for sub in [log.roc, log.qg_histogram]:
         sub.make_subdir('training', creation)
         sub.make_subdir('validation', creation)
+    log.qg_histogram.make_subdir('delphes')
     return log
 
 

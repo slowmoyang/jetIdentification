@@ -68,7 +68,7 @@ def l2_weight_decay(weight_decay_rate):
     '''ref. https://github.com/tensorflow/models/blob/master/resnet/resnet_model.py ''' 
     costs = []
     for var in tf.trainable_variables():
-        if var.op.name.find(r'DW') > 0:
+        if var.op.name.find('DW') > 0:
             costs.append(tf.nn.l2_loss(var))
     return tf.multiply(weight_decay_rate, tf.add_n(costs))
 
