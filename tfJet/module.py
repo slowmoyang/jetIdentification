@@ -50,7 +50,7 @@ def resnet_module(input_tensor):
 
 
 # inception module, naive version
-def inception_module_naive(input_tensor, channels, module_name):
+def inception_naive(input_tensor, channels, module_name):
     with tf.variable_scope(module_name):
         conv1x1 = conv_layer(input_tensor=input_tensor, kernel_size=1, output_channels=channels['conv1x1'], layer_name='conv1x1')
         conv3x3 = conv_layer(input_tensor=input_tensor, kernel_size=3, output_channels=channels['conv3x3'], layer_name='conv3x3')
@@ -64,7 +64,7 @@ def inception_module_naive(input_tensor, channels, module_name):
 
 
 # Inception module with dimension reductions
-def inception_module_v1(input_tensor, channels, module_name):
+def inception_v1(input_tensor, channels, module_name):
     with tf.variable_scope(module_name):
         with tf.variable_scope('branch1x1'):
             branch1x1 = conv_layer(input_tensor=input_tensor, kernel_size=1, output_channels=channels['#1x1'], layer_name='conv1x1')

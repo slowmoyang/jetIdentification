@@ -2,7 +2,33 @@ import tensorflow as tf
 from layer_utils import create_var
 from layer_utils import flatten
 
-def fc_layer(input_tensor, output_dim, layer_name, DW=True, act_ftn=tf.nn.relu):
+
+def maxout(x, m, k, name='maxout'):
+    '''
+    ref. Ian J. Goodfellow et al. Maxout Networks.
+    ref. Qi Wang, Joseph JaJa. From Maxout to Channel-Out: Encoding Information on Sparse Pathways.
+    ref. http://www.simon-hohberg.de/2015/07/19/maxout.html
+
+    m: Number of units in each linear feature extractor (complexity)
+    k: Number of linear feature extractors
+    '''
+    d = x.get_shape().as_list()[-1]
+    
+    with tf.variable_scope(name):
+        W = tf.get_variable('W', shape=[d, m, k], initializer=tf.contrib.layers.xavier_initializer())
+        b = tf.get_variable('b', shape=[m, k], initializer=tf.contrib.layers.xavier_initializer())
+
+        # x: [N, d]
+        # W: [d, m, k]
+        # z: [N, m, k]
+        z = tf.tensordot(x, W, axes=[[1], [0]]) + b
+
+        h = tf.reduce_max(z, axis=-1) # shape: [N, m]
+    
+    return h    
+
+
+def fc_layer(input_tensor, output_dim, layer_name, DW=False, act_ftn=tf.nn.relu):
     input_dim = input_tensor.get_shape().as_list()[-1]
 
     with tf.variable_scope(layer_name):
@@ -69,81 +95,3 @@ def maxout(input_tensor, layer_name):
     input_dim = input_tensor.get_shape().as_list()[-1]
     with tf.variable_scope():
         pass
-        
-
-
-def vgg_module(input_tensor, num_block, module_name):
-    '''
-      full pre-activation
-      NCHW format
-
-      cin = the channels of the input tensor
-      cout = the channels of the output tensor
-
-      tin = the input tensor
-      tout = the output tensor
-    '''
-    input_channels = input_tensor.get_shape().as_list()[1]
-    output_channels = 2 * input_channels
-    output_tensor = input_tensor
-
-    with tf.variable_scope(module_name):
-        for i in range(num_block):
-            # batch normalization
-            bn_name = 'bn-%d_in_%s' %(i, module_name)
-            output_tensor = tf.contrib.layers.batch_norm(output_tensor, fused=True, data_format='NCHW')
-            print(bn_name, output_tensor.get_shape())
-            # activation
-            output_tensor = tf.nn.relu(output_tensor)
-            # convolution
-            conv_name = 'conv-%d_in_%s' % (i, module_name)
-            output_tensor = conv_layer(output_tensor, output_channels,layer_name=conv_name)
-            print(conv_name, output_tensor.get_shape())
-        # pooling layer
-        output_tensor = tf.nn.max_pool(output_tensor, ksize=[1, 1, 2, 2] , strides=[1, 1, 2, 2], padding='SAME', data_format='NCHW')
-        print('max_pooling in ', module_name, output_tensor.get_shape())
-
-    return output_tensor
-
-
-def resnet_module(input_tensor):
-    pass
-
-
-# inception module, naive version
-def inception_module_naive(input_tensor, channels, module_name):
-    with tf.variable_scope(module_name):
-        conv1x1 = conv_layer(input_tensor=input_tensor, kernel_size=1, output_channels=channels['conv1x1'], layer_name='conv1x1')
-        conv3x3 = conv_layer(input_tensor=input_tensor, kernel_size=3, output_channels=channels['conv3x3'], layer_name='conv3x3')
-        conv5x5 = conv_layer(input_tensor=input_tensor, kernel_size=5, output_channels=channels['conv5x5'], layer_name='conv5x5')
-        pool3x3 = max_pooling_layer(input_tensor, layer_name='max_pool3x3', k=3, s=1)
-
-        # axis: channels
-        output_tensor = tf.concat(values=[conv1x1, conv3x3, conv5x5, pool3x3], axis=1)
-
-    return output_tensor
-
-
-# Inception module with dimension reductions
-def inception_module_v1(input_tensor, channels, module_name):
-    with tf.variable_scope(module_name):
-        with tf.variable_scope('branch1x1'):
-            branch1x1 = conv_layer(input_tensor=input_tensor, kernel_size=1, output_channels=channels['#1x1'], layer_name='conv1x1')
-        with tf.variable_scope('branch3x3'):
-            branch3x3 = conv_layer(input_tensor=input_tensor, kernel_size=1, output_channels=channels['#3x3_reduce'], layer_name='conv1x1')
-            branch3x3 = conv_layer(input_tensor=branch3x3, kernel_size=3, output_channels=channels['#3x3'], layer_name='conv3x3')
-        with tf.variable_scope('branch5x5'):
-            branch5x5 = conv_layer(input_tensor=input_tensor, kernel_size=1, output_channels=channels['#5x5_reduce'], layer_name='conv1x1')
-            branch5x5 = conv_layer(input_tensor=branch5x5, kernel_size=5, output_channels=channels['#5x5'], layer_name='conv5x5')
-        with tf.variable_scope('branch1x1'):
-            branch_pool = max_pooling_layer(input_tensor, layer_name='max_pool3x3', k=3, s=1)
-        output_tensor = tf.concat([branch1x1, branch3x3, branch5x5, branch_pool], axis=1)
-    return output_tensor
-
-
-# factorizing inception module
-def inception_module_v2(input_tensor, channels, module_name):
-    pass
-
-def dense_net_module():
-    pass

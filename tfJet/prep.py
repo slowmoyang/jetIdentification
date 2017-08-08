@@ -225,13 +225,18 @@ def main():
 
     tf.app.flags.DEFINE_string(
         'input_path',
-        '../data/root/jet_pythia_1.root',
+        '../data/root/jet_pythia_150.root',
         ''
     )
     tf.app.flags.DEFINE_string(
         'data_dir',
         '../data/',
         ''
+    )
+    tf.app.flags.DEFINE_string(
+        'generator',
+        'pythai',
+        'temporarily..'
     )
     tf.app.flags.DEFINE_integer('eta_threshold', 2.4, 'if value is -1, no eta binning')
     
@@ -245,7 +250,7 @@ def main():
         dataset_list.append(above)
 
     for ds in dataset_list:
-        split_n_save(ds, generator='pythia')
+        split_n_save(ds, generator=FLAGS.generator)
 
 
 if __name__ == '__main__':
