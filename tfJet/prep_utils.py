@@ -4,8 +4,34 @@ from __future__ import print_function
 
 import numpy as np
 from sklearn import preprocessing
+import tensorflow as tf
 
 from pipeline import inputs
+
+def convert_to_feature(value, dtype):
+    if dtype == 'int':
+        return _int64_feature(value)
+    elif dtype == 'float':
+        return _float_feature(value)
+    elif dtype == 'bytes':
+        # tf.compat: Functions for Python 2 vs. 3 compatibility
+        # tf.compat.as_bytes: Converts either bytes or unicode to bytes, using utf-8 encoding for text.
+        return _bytes_feature(tf.compat.as_bytes(value))
+    else:
+        raise NotImplementedError('Not implemented :(')
+
+
+
+def _int64_feature(value):
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+def _float_feature(value):
+    return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
 
 def load_npz(path):
     container = np.load(path)

@@ -26,7 +26,8 @@ def read_and_decode(filename_queue, image_shape=(3, 33, 33), label_shape=(2)):
         features = {
             'image': tf.FixedLenFeature([], tf.string),
             'label': tf.FixedLenFeature([], tf.string),
-            'jetpT': tf.VarLenFeature(dtype=tf.float32),
+            'pT': tf.VarLenFeature(dtype=tf.float32),
+            'eta': tf.VarLenFeature(dtype=tf.float32),
             'nMatchedJets': tf.FixedLenFeature([], tf.int64),
             'partonId': tf.FixedLenFeature([], tf.int64),
             # unused vars..
@@ -39,24 +40,30 @@ def read_and_decode(filename_queue, image_shape=(3, 33, 33), label_shape=(2)):
     # Convert the image data from string back to the numbers
     image = tf.decode_raw(bytes=features['image'], out_type=tf.float32) # shape=(?,)
     # The image tensor is flattened out, so we have to reconstruct the shape
-    image = tf.reshape(tensor = image, shape = image_shape)
+    image = tf.reshape(tensor=image, shape=image_shape)
 
     # images
     label = tf.decode_raw(bytes=features['label'], out_type=tf.int64)
     label.set_shape(label_shape)
 
-    jetpT = tf.sparse_tensor_to_dense(features['jetpT'])
-    jetpT.set_shape(1)
+    pT = tf.sparse_tensor_to_dense(features['pT'])
+    pT.set_shape(1)
 
-    infos = {
-        'jetpT': jetpT,
+    eta = tf.sparse_tensor_to_dense(features['eta'])
+    eta.set_shape(1)
+
+    dataset = {
+        'image': image,
+        'label': label,
+        'pT': pT,
+        'eta': eta,
         'nMatchedJets': features['nMatchedJets'],
         'partonId': features['partonId'],
         'nJets': features['nJets'],
         'nGenJets': features['nGenJets'],
     }
 
-    return image, label, infos
+    return dataset
 
 def inputs(data_path_list, batch_size, num_epochs):
     with tf.name_scope('input'):
@@ -70,41 +77,50 @@ def inputs(data_path_list, batch_size, num_epochs):
             num_epochs=num_epochs
         )
 
-        _image, _label, _infos = read_and_decode(filename_queue)
+        ds = read_and_decode(filename_queue)
 
-        images, labels, jetpT, nMatchedJets, partonId, nJets, nGenJets = tf.train.shuffle_batch(
-            tensors=[ _image, _label, _infos['jetpT'], _infos['nMatchedJets'], _infos['partonId'], _infos['nJets'], _infos['nGenJets']],  # The list or dictionary of tensors to enqueue
+        image, label, pT, eta, nMatchedJets, partonId, nJets, nGenJets, = tf.train.shuffle_batch(
+            tensors=[ds['image'], ds['label'], ds['pT'], ds['eta'], ds['nMatchedJets'],
+                     ds['partonId'], ds['nJets'], ds['nGenJets']],
             batch_size = batch_size,
             num_threads = 2,  # The number of threads enque
             capacity = 1000 + 3 * batch_size,  # The capacity argument controls the how long the prefetching is allowed to grow the queues.
             min_after_dequeue = 1000  # Minimum number elements in the queue after a dequeue, used to ensure a level of mixing of elements.
         )
 
-    infos = {
-        'jetpT': tf.reshape(jetpT, [-1]), # reshape from (500, 1) to (500,)
-        'nMatchedJets': nMatchedJets,
-        'partonId': partonId,
-        'nJets': nJets,
-        'nGenJets': nGenJets,
-    }
+        dataset = {
+            'image': image,
+            'label': label,
+            'pT': pT,
+            'eta': eta,
+            'nMatchedJets': nMatchedJets,
+            'partonId': partonId,
+            'nJets': nJets,
+            'nGenJets': nGenJets,
+        }
 
-    return images, labels, infos
+    return dataset
 
 
 def main():
     FLAGS = tf.app.flags.FLAGS
-    tf.app.flags.DEFINE_string('input_path','../data/tfrecords/jet_training_13503_pT-ALL_eta-ALL_Pythia.tfrecords', 'the path of input data file (.tfrecords format)') 
+    tf.app.flags.DEFINE_string(
+        'input_path',
+        '../data/jet_pT-ALL_eta-below_2.4_pythia/tfrecords/jet_test_2633.tfrecords',
+        'the path of input data file (.tfrecords format)'
+    )
     with tf.Graph().as_default(), tf.device('/cpu:0'):
-        images, labels, infos  = inputs(
+        dataset  = inputs(
             data_path_list=[FLAGS.input_path],
             batch_size=500,
             num_epochs=1
         )
-        print('images: ', images)
-        print('labels: ', labels)
-        print('jetpT: ', infos['jetpT'])
-        print('nMatchedJets: ', infos['nMatchedJets'])
-        print('partonId: ', infos['partonId'])
+        print('images: ', dataset['image'])
+        print('labels: ', dataset['label'])
+        print('pT: ', dataset['pT'])
+        print('eta: ', dataset['eta'])
+        print('nMatchedJets: ', dataset['nMatchedJets'])
+        print('partonId: ', dataset['partonId'])
         print('\n\n\n\n')
 
         step = 0
@@ -116,11 +132,9 @@ def main():
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
             try:
                 while not coord.should_stop():
-                    jetpT_np, nMatchedJets_np, partonId_np = sess.run([infos['jetpT'], infos['nMatchedJets'], infos['partonId']])
-                    print('jetpT:', jetpT_np[0])
-                    print('nMatchedJets:', nMatchedJets_np[0])
-                    print('partonId:', partonId_np[0])
-                    # break
+                    pT = sess.run(dataset['pT'])
+                    print('jetpT:', pT[0])
+                    break
                     step += 1
             except tf.errors.OutOfRangeError:
                 print('%d steps' % step)

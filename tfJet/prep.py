@@ -9,10 +9,27 @@ import numpy as np
 import tensorflow as tf
 
 from prep_utils import fill
+from prep_utils import convert_to_feature
+from utils import Directory
 
 
-def root_to_np(input_path, tree_name="jetAnalyser/jetAnalyser",
-               C=3, H=33, W=33, deta_max=0.4, dphi_max=0.4):
+create_dataset = lambda: {
+    'image': [],
+    'label': [],
+    'pT': [],
+    'eta': [],
+    'nMatchedJets': [],
+    'nJets': [],
+    'nGenJets': [],
+    'partonId': [],
+}
+
+
+def root_to_np(input_path,
+               eta_threshold=2.4,
+               C=3, H=33, W=33,
+               deta_max=0.4, dphi_max=0.4,
+               tree_name="jetAnalyser/jetAnalyser"):
     '''
     NCHW format
     N : the number of jet
@@ -20,97 +37,132 @@ def root_to_np(input_path, tree_name="jetAnalyser/jetAnalyser",
     H : height (~
     W : width (~the number of column)
 
-    info = [pT, nJets, nGenJets]
-
+    To make data without eta binning, set eta_threshold to np.inf
 
     '''
     tfile = ROOT.TFile(input_path, "READ")
     jet = tfile.Get(tree_name)
     entries = jet.GetEntriesFast()
-    images = []
-    labels = []
-    jetpT = []
-    nMatchedJets = []
-    nJets = []
-    nGenJets = []
-    partonId = []
+
+    above = create_dataset()
+    below = create_dataset()
+
+    start = time.time()
     for j in xrange(entries):
         if j % 1000 == 0:
             print('( %s ) %dth jet' % (time.asctime(), j))
+
         jet.GetEntry(j)
 
-        # label (onehot encoding)
-        # gluon: background
-        if jet.partonId == 21:
-            labels.append([[0, 1]])
-        # light quark ~ signal
-        elif jet.partonId in [1, 2, 3]:
-            labels.append([[1, 0]])
+        # eta below threshold value (defalult 2.4)
+        if abs(jet.eta) < eta_threshold:
+            # gluon: background
+            if jet.partonId == 21:
+                below['label'].append([[0, 1]])
+            elif jet.partonId in [1, 2, 3]:
+                below['label'].append([[1, 0]])
+            else:
+                continue
+
+            img = np.zeros(shape=(C, H, W), dtype=np.float32)
+            for d in xrange(len(jet.dau_pt)):
+                if (-deta_max < jet.dau_deta[d] < deta_max) and (-dphi_max < jet.dau_dphi[d] < dphi_max):
+                    # neutral particle
+                    if jet.dau_charge[d]:
+                        # pT
+                        fill(img[1], jet.dau_deta[d], jet.dau_dphi[d], jet.dau_pt[d], H)
+                    # charged particle
+                    else:
+                        # pT
+                        fill(img[0], jet.dau_deta[d], jet.dau_dphi[d], jet.dau_pt[d], H)
+                        # multiplicity
+                        fill(img[2], jet.dau_deta[d], jet.dau_dphi[d], 1, H)
+
+            # collect data
+            keys = ['image', 'pT', 'eta', 'nMatchedJets', 'nJets', 'nGenJets', 'partonId']
+            items = [img, jet.pt, jet.eta, jet.nMatchedJets, jet.nJets, jet.nGenJets, jet.partonId]
+            for k, i in zip(keys, items):
+                below[k].append(i)
+
+            below['eta_range'] = 'below_%.1f' % eta_threshold
+            below['pT_range'] = 'ALL'
+
+        # eta above threshold value
         else:
-            continue
+            if jet.partonId == 21:
+                above['label'].append([[0, 1]])
+            elif jet.partonId in [1, 2, 3]:
+                above['label'].append([[1, 0]])
+            else:
+                continue
 
-        # make a jet images
-        img = np.zeros(shape=(C, H, W), dtype=np.float32)
-        for d in xrange(len(jet.dau_pt)):
-            ''' if False not in (-0.4 < jet.deta[d], jet.dphi[d] < 0.4) '''
-            if (-deta_max < jet.dau_deta[d] < deta_max) and (-dphi_max < jet.dau_dphi[d] < dphi_max):
-                # neutral particle
-                if jet.dau_charge[d]:
-                    # pT
-                    fill(img[1], jet.dau_deta[d], jet.dau_dphi[d], jet.dau_pt[d], H)
-                # charged particle
-                else:
-                    # pT
+            img = np.zeros(shape=(1, H, W), dtype=np.float32)
+            for d in xrange(len(jet.dau_pt)):
+                if (-deta_max < jet.dau_deta[d] < deta_max) and (-dphi_max < jet.dau_dphi[d] < dphi_max):
                     fill(img[0], jet.dau_deta[d], jet.dau_dphi[d], jet.dau_pt[d], H)
-                    # multiplicity
-                    fill(img[2], jet.dau_deta[d], jet.dau_dphi[d], 1, H)
-        images.append(img)
 
-        # jet information
-        jetpT.append(jet.pt)
-        nMatchedJets.append(jet.nMatchedJets)
-        nJets.append(jet.nJets)
-        nGenJets.append(jet.nGenJets)
-        partonId.append(jet.partonId)
- 
-    images = np.array(images, dtype=np.float32)
-    labels = np.array(labels, dtype=np.int64)
-    info = {
-        'jetpT': np.array(jetpT, dtype=np.float64),
-        'nMatchedJets': np.array(nMatchedJets, dtype=np.int64),
-        'nJets': np.array(nJets, dtype=np.int64),
-        'nGenJets': np.array(nGenJets, dtype=np.int64),
-        'partonId': np.array(partonId, dtype=np.int64)
-    }
-    return images, labels, info
+            # collect data
+            keys = ['image', 'pT', 'eta', 'nMatchedJets', 'nJets', 'nGenJets', 'partonId']
+            items = [img, jet.pt, jet.eta, jet.nMatchedJets, jet.nJets, jet.nGenJets, jet.partonId]
+            for k, i in zip(keys, items):
+                above[k].append(i)
 
+            above['eta_range'] = 'above_%.1f' % eta_threshold
+            above['pT_range'] = 'ALL'
 
-def _int64_feature(value):
-    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+    duration = time.time() - start
+    duration /= 60
 
-def _float_feature(value):
-    return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
+    for ds in [below, above]:
+        for k in ds.keys():
+            if isinstance(ds[k], list):
+                ds[k] = np.array(ds[k])
 
-def _bytes_feature(value):
-    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+    print('duration: %.1f min' % duration)
+    print('entries in root file: %d' % entries)
+    print('#examples with eta below %.1f: %d' % (eta_threshold, below['image'].shape[0]))
+    print('#examples with eta above %.1f: %d' % (eta_threshold, above['image'].shape[0]))
+
+    return below, above
 
 
-def np_to_tfrecords(images, labels, info, output_path):
+def pt_binning(dataset, minimum=0.0, maximum=np.inf):
+    condition = np.logical_and(
+        dataset['pT'] < maximum,
+        dataset['pT'] > minimum
+    )
+
+    indices = np.where(condition)
+
+    new_dataset = {}
+
+    for k in dataset.keys():
+        if isinstance(dataset[k], list):
+            new_dataset[k] = dataset[k][indices]
+
+    new_dataset['eta_range'] = dataset['eta_range']
+    new_dataset['pT_range'] = '%d-%d' % (minimum, maximum)
+
+    return new_dataset
+
+
+def np_to_tfrecords(dataset, output_path):
     # Open the TFRecords file
     writer = tf.python_io.TFRecordWriter(output_path)
-    for i in xrange(images.shape[0]):
+    for i in xrange(dataset['image'].shape[0]):
         # only length-1 array can be converted to Python scalars.
-        image_raw = images[i].tostring()
-        label_raw = labels[i].tostring()
+        image_raw = dataset['image'][i].tostring()
+        label_raw = dataset['label'][i].tostring()
         feature = {
             # Convert data into the proper data type of the feature using tf.traid.<DATA_TYPE>List
-            'image': _bytes_feature(tf.compat.as_bytes(image_raw)),
-            'label': _bytes_feature(tf.compat.as_bytes(label_raw)),
-            'jetpT': _float_feature(info['jetpT'][i]),
-            'nMatchedJets': _int64_feature(info['nMatchedJets'][i]),
-            'partonId': _int64_feature(info['partonId'][i]),
-            'nJets': _int64_feature(info['nJets'][i]),
-            'nGenJets': _int64_feature(info['nGenJets'][i]),
+            'image': convert_to_feature(value=image_raw, dtype='bytes'),
+            'label': convert_to_feature(value=label_raw, dtype='bytes'),
+            'pT': convert_to_feature(value=dataset['pT'][i], dtype='float'),
+            'eta': convert_to_feature(value=dataset['eta'][i], dtype='float'),
+            'nMatchedJets': convert_to_feature(value=dataset['nMatchedJets'][i], dtype='int'),
+            'partonId': convert_to_feature(value=dataset['partonId'][i], dtype='int'),
+            'nJets': convert_to_feature(value=dataset['nJets'][i], dtype='int'),
+            'nGenJets': convert_to_feature(value=dataset['nGenJets'][i], dtype='int'),
         }
         # Create a feature using tf.train.Feature and pass the converted data to it.
         # Create an Example protocol buffer using tf.train.Example and pass the converted data to it.
@@ -121,30 +173,17 @@ def np_to_tfrecords(images, labels, info, output_path):
     # Close the file
     writer.close()
 
+ 
+def split_n_save(dataset, generator, data_path='../data'):
+    total = dataset['image'].shape[0]
 
-'''
-def _pt_binning(images, labels, info, range_list, fname, output_dir='./data'):
-    fname_format = '%s_%d_to_%d'
-    path = os.path.join(output_dir, fname_format)
-    for lower, upper in range_list:
-        cond = np.logical_and(
-            info[qgjic.INFO_NAMES=='pT'] > lower,
-            info[qgjic.INFO_NAMES=='pT'] < upper
-        )
-        np.savez(
-            path % (fname, lower, upper),
-            images=images[cond],
-            labels=labels[cond],
-            info=info[cond]
-        )
-'''
-def split_dataset():
-    FLAGS = tf.app.flags.FLAGS
-    tf.app.flags.DEFINE_string('input_path', '../data/root/jet_pythia_1.root', 'the path of input file (.root format file)')
-    images, labels, info = root_to_np(FLAGS.input_path)
+    dname = 'jet_pT-%s_eta-%s_%s' % (dataset['pT_range'], dataset['eta_range'], generator)
+    output_dpath = os.path.join(data_path, dname)
+    output_dir = Directory(output_dpath)
+    output_dir.make_subdir('npz')
+    output_dir.make_subdir('tfrecords')
 
-    total = images.shape[0]
-    # start index for each dataset
+    # start index for each data set
     # i.e. training_idx = o
     val_idx = int(total*0.6)
     test_idx = int(total*0.8)
@@ -153,62 +192,61 @@ def split_dataset():
     tag_list = ['training', 'validation', 'test']
 
     for (start_idx, end_idx), tag in zip(idx_list, tag_list):
-        images_to_save = images[start_idx: end_idx]
-        labels_to_save = labels[start_idx: end_idx]
+        # data set to save
+        ds = {}
+        for k in dataset.keys():
+            if isinstance(dataset[k], np.ndarray):
+                ds[k] = dataset[k][start_idx: end_idx]
 
-        info_to_save = {
-            'jetpT': info['jetpT'][start_idx: end_idx],
-            'nJets': info['nJets'][start_idx: end_idx],
-            'nMatchedJets': info['nMatchedJets'][start_idx: end_idx],
-            'nGenJets': info['nGenJets'][start_idx: end_idx],
-            'partonId': info['partonId'][start_idx: end_idx],
+        num_example = ds['image'].shape[0]
 
-        }
+        fname = 'jet_%s_%d' % (tag, num_example)
 
-        num_example = images_to_save.shape[0]
-
-        fname = 'jet_%s_%d_pT-ALL_eta-ALL_Pythia' % (tag, num_example)
-
-        npz_path = os.path.join('../data/npz', fname)
+        npz_path = os.path.join(output_dir.npz.path, fname)
         np.savez(
             npz_path,
-            images=images_to_save,
-            labels=labels_to_save,
-            jetpT=info_to_save['jetpT'],
-            nMatchedJets=info_to_save['nMatchedJets'],
-            partonId=info_to_save['partonId'],
-            nJets=info_to_save['nJets'],
-            nGenJets=info_to_save['nGenJets'],
+            image=ds['image'],
+            label=ds['label'],
+            pT=ds['pT'],
+            eta=ds['eta'],
+            nMatchedJets=ds['nMatchedJets'],
+            partonId=ds['partonId'],
+            nJets=ds['nJets'],
+            nGenJets=ds['nGenJets'],
         )
 
         # Convert numpy array (ndarray object) to .tfrecords
-        tfrecords_path = os.path.join('../data/tfrecords', fname+'.tfrecords')
-        np_to_tfrecords(images_to_save, labels_to_save, info_to_save, output_path=tfrecords_path)
+        tfrecords_path = os.path.join(output_dir.tfrecords.path, fname+'.tfrecords')
+        np_to_tfrecords(dataset=ds, output_path=tfrecords_path)
 
 
 def main():
     FLAGS = tf.app.flags.FLAGS
-    tf.app.flags.DEFINE_string('input_path', '../data/root/jet_pythia_1.root', 'the path of input file (.root format file)')
-    images, labels, info = root_to_np(FLAGS.input_path)
 
-    fname = 'jet_training_%d_pT-ALL_eta-ALL_Pythia' % images.shape[0]
-
-    npz_path = os.path.join('../data/npz', fname)
-    np.savez(
-        npz_path,
-        images=images,
-        labels=labels,
-        jetpT=info['jetpT'],
-        nJets=info['nJets'],
-        nMatchedJets=info['nMatchedJets'],
-        nGenJets=info['nGenJets'],
-        partonId=info['partonId']
+    tf.app.flags.DEFINE_string(
+        'input_path',
+        '../data/root/jet_pythia_1.root',
+        ''
     )
+    tf.app.flags.DEFINE_string(
+        'data_dir',
+        '../data/',
+        ''
+    )
+    tf.app.flags.DEFINE_integer('eta_threshold', 2.4, 'if value is -1, no eta binning')
+    
+    dataset_list = []
+    if FLAGS.eta_threshold == -1:
+        ds = root_to_np(input_path=FLAGS.input_path, eta_threshold=np.inf)
+        dataset_list.append(ds)
+    else:
+        below, above = root_to_np(input_path=FLAGS.input_path, eta_threshold=FLAGS.eta_threshold)
+        dataset_list.append(below)
+        dataset_list.append(above)
 
-    # Convert numpy array (ndarray object) to .tfrecords
-    tfrecords_path = os.path.join('../data/tfrecords', fname+'.tfrecords')
-    np_to_tfrecords(images, labels, info, output_path=tfrecords_path)
+    for ds in dataset_list:
+        split_n_save(ds, generator='pythia')
 
 
 if __name__ == '__main__':
-    split_dataset()
+    main()

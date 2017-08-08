@@ -10,16 +10,17 @@ import pandas as pd
 
 import model
 from pipeline import inputs
-from evaluation import evaluate
-from eval_utils import draw_all_qg_histograms
 from utils import get_log_dir
+
 
 def train(tfrecords_path,
           tfevents_dir,
           ckpt_dir,
           benchmark_path,
-          batch_size=500,
-          num_epochs=20):
+          batch_size,
+          num_epochs,
+          initial_lr,
+          dropout_prob):
     """
     ref. https://www.tensorflow.org/get_started/mnist/mechanics
     ref. https://github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10_train.py
@@ -29,7 +30,7 @@ def train(tfrecords_path,
         # Get images and labels for jet discrimination
         # Force input pipeline to CPU:0 to avoid operations sometimes ending up on GPU and resulting in a slow down.
         with tf.device('/cpu:0'):
-            images, labels, _ = inputs(
+            dataset = inputs(
                 data_path_list=tfrecords_path,
                 batch_size=batch_size,
                 num_epochs=num_epochs
@@ -38,16 +39,16 @@ def train(tfrecords_path,
             keep_prob = tf.placeholder(tf.float32)
 
         # Build a Graph that computes the logits predictions from the inference model.
-        logits = model.inference(images, keep_prob)
+        logits = model.inference(dataset['image'], keep_prob)
         # Bulid a Graph that computes the softmax predictions
         # to computes ROC curves.
         prediction = tf.nn.softmax(logits)
 
         # Calculate loss and accuracy
-        loss = model.loss(logits, labels)
-        accuracy = model.evaluation(logits, labels)
+        loss = model.loss(logits, dataset['label'])
+        accuracy = model.evaluation(logits, dataset['label'])
 
-        train_op = model.training(loss, lr=0.001)
+        train_op = model.training(loss, lr=initial_lr)
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         # Create a session for running operations in the Graph.
         sess = tf.Session()
@@ -65,16 +66,18 @@ def train(tfrecords_path,
             while not coord.should_stop():
                 start_time = time.time()
                 # training
-                _ = sess.run(train_op, feed_dict={keep_prob: 0.5})
+                _ = sess.run(train_op, feed_dict={keep_prob: dropout_prob})
                 duration = time.time() - start_time
                 benchmark.loc[step] = {'training_time': duration}
+
                 # write summary and print loss
                 if step % 100 == 0:
                     # Record execution stats
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
+
                     summary, acc_value, loss_value, labels_np, preds_np = sess.run(
-                        [merged, accuracy, loss, labels, prediction],
+                        [merged, accuracy, loss, dataset['label'], prediction],
                         feed_dict={keep_prob: 1.0}, options=run_options, run_metadata=run_metadata
                     )
                     writer.add_summary(summary, step)
@@ -105,13 +108,11 @@ def main(argv=None):
         '../data/tfrecords/jet_training_8101_pT-ALL_eta-ALL_Pythia.tfrecords',
         'the training data set'
     )
-    tf.app.flags.DEFINE_string(
-        'validation_data',
-        '../data/tfrecords/jet_validation_2701_pT-ALL_eta-ALL_Pythia.tfrecords',
-        'the validation data set'
-    )
+
     tf.app.flags.DEFINE_integer('batch_size', 500, 'batch size')
     tf.app.flags.DEFINE_integer('num_epochs', 30, 'the number of epochs')
+    tf.app.flags.DEFINE_float('initial_lr', 0.001, 'ininital learning rate')
+    tf.app.flags.DEFINE_float('dropout_prob', 0.5, 'the probability of dropout')
 
     log_dir = get_log_dir(dname='test', creation=True)
 
@@ -121,16 +122,10 @@ def main(argv=None):
         ckpt_dir=log_dir.ckpt.path,
         benchmark_path=log_dir.path,
         batch_size=FLAGS.batch_size,
-        num_epochs=FLAGS.num_epochs
+        num_epochs=FLAGS.num_epochs,
+        initial_lr=FLAGS.initial_lr,
+        dropout_prob=FLAGS.dropout_prob,
     )
-   
-    evaluate(
-        training_data=FLAGS.training_data,
-        validation_data=FLAGS.validation_data,
-        log_dir=log_dir
-    )
-
-    draw_all_qg_histograms(qg_histogram_dir=log_dir.qg_histogram)
  
 
 if __name__ == '__main__':

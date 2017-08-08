@@ -2,14 +2,14 @@ import tensorflow as tf
 
 
 def _get_weight(input_dim, output_dim, var_name, initializer):
-    if initializer == None:
+    if initializer is None:
         initializer = tf.contrib.layers.xavier_initializer
     shape = [input_dim, output_dim]
     return tf.get_variable(var_name, shape, initializer=initializer())
 
 
 def _get_bias(output_dim, var_name, initializer):
-    if initializer == None:
+    if initializer is None:
         initializer = tf.contrib.layers.xavier_initializer
     shape = [output_dim]
     return tf.get_variable(var_name, shape, initializer=initializer())
@@ -17,17 +17,16 @@ def _get_bias(output_dim, var_name, initializer):
 
 def _get_kernel(input_channels, output_channels, kernel_size, var_name, initializer):
     shape = [kernel_size, kernel_size, input_channels, output_channels]
-    if initializer == None:
+    if initializer is None:
         initializer = tf.contrib.layers.xavier_initializer_conv2d
     return tf.get_variable(var_name, shape, initializer=initializer())
 
 
 def create_var(var_type, **kargs):
-    '''
-    '''
-    if 'use_DW' in kargs.keys():
-        if kargs['use_DW']:
-            kargs['var_name'] += '_DW'
+    for tag in ['DW', 'VK']:
+        if tag in kargs.keys():
+            if kargs[tag]:
+                kargs['var_name'] += '_%s' % tag
 
     if 'initializer' not in kargs.keys():
         kargs['initializer'] = None
