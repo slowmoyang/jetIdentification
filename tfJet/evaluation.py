@@ -84,12 +84,14 @@ def evaluate(log_dir,
 
     ckpt_list = ckpt_parser(log_dir.ckpt.path)
     for ckpt in ckpt_list:
-        # on training set
+
         subdname = 'step_%s' % str(ckpt['step'].zfill(6))
         log_dir.tfevents.make_subdir(subdname)
         subd = getattr(log_dir.tfevents, subdname)
         subd.make_subdir('training')
         subd.make_subdir('validation')
+
+        # on training set
         eval_once(
             training_step=ckpt['step'],
             ckpt_path=ckpt['path'],
@@ -109,3 +111,17 @@ def evaluate(log_dir,
             roc_dir=log_dir.roc.validation.path,
             qg_histogram_dir=log_dir.qg_histogram.validation.path,
         )
+
+
+def main():
+    ckpt_list = ckpt_parser(log_dir.ckpt.path)
+    eval_once(
+        training_step=ckpt['step'],
+        ckpt_path=ckpt['path'],
+        tfrecords_path=validation_data,
+        tfevents_dir=subd.validation.path,
+        is_training_data=False,
+        roc_dir=log_dir.roc.validation.path,
+        qg_histogram_dir=log_dir.qg_histogram.validation.path,
+    )
+   
