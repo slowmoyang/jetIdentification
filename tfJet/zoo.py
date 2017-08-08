@@ -80,3 +80,33 @@ def vgg8_gap(images, keep_prob):
 
     logits = fc_layer(input_tensor=dropped, output_dim=2, layer_name='logits', act_ftn=tf.identity)
     return logits
+
+
+def maxout_network(images, keep_prob):
+    # images [N, 3, 33, 33]
+    conv1 = conv_layer(images, 64, 'conv1')
+    conv2 = conv_layer(conv1, 64, 'conv2')
+    pool1 = max_pooling_layer(conv2, layer_name='max_pool_1') 
+
+    conv3 = conv_layer(pool1, 128, 'conv3')
+    conv4 = conv_layer(conv3, 128, 'conv4')
+    pool2 = max_pooling_layer(conv4, layer_name='max_pool_2') 
+
+    conv5 = conv_layer(pool2, 256, 'conv5')
+    conv6 = conv_layer(conv5, 256, 'conv6')
+    pool3 = max_pooling_layer(conv6, layer_name='max_pool_3')
+
+    conv7 = conv_layer(pool3, 512, 'conv7')
+    conv8 = conv_layer(conv7, 512, 'conv8')
+    
+    # Global average pooling
+    gap = gap_layer(conv8, layer_name='global_avg_pool')
+
+    mo = maxout(gap, m=128, k=10, name='maxout')
+
+    with tf.name_scope('dropout'):
+        dropped = tf.nn.dropout(mo, keep_prob)
+
+    logits = maxout(dropped, m=2, k=10, name='logits')
+
+    return logits

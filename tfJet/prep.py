@@ -233,12 +233,8 @@ def main():
         '../data/',
         ''
     )
-    tf.app.flags.DEFINE_string(
-        'generator',
-        'pythai',
-        'temporarily..'
-    )
     tf.app.flags.DEFINE_integer('eta_threshold', 2.4, 'if value is -1, no eta binning')
+
     
     dataset_list = []
     if FLAGS.eta_threshold == -1:
@@ -250,7 +246,7 @@ def main():
         dataset_list.append(above)
 
     for ds in dataset_list:
-        split_n_save(ds, generator=FLAGS.generator)
+        split_n_save(ds, generator='pythia')
 
 
 if __name__ == '__main__':

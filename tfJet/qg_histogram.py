@@ -61,10 +61,10 @@ class QGHistogram(object):
     def finish(self):
         # self.draw()
         self.save()
-       
 
-def draw_qg_histogram(tr_path, val_path, step, path):
-    val = ROOT.TFile(val_path, "READ")
+
+def draw_qg_histogram(input_path, step, output_path, log=True):
+    val = ROOT.TFile(input_path, "READ")
 
     c = ROOT.TCanvas("c2", "", 800, 600)
     all = [val.quark_all, val.gluon_all]
@@ -86,7 +86,6 @@ def draw_qg_histogram(tr_path, val_path, step, path):
     for p in two+three:
         p.SetLineWidth(2)
 
-
     val.quark_all.Draw('hist')
     val.gluon_all.Draw('hist SAME')
 
@@ -97,12 +96,44 @@ def draw_qg_histogram(tr_path, val_path, step, path):
 
     # val.quark_all.GetYaxis().SetRangeUser(0, 0.3)
     c.BuildLegend( 0.35,  0.20,  0.60,  0.45).SetFillColor(0)
-    c.SetLogy()
+    if log:
+        c.SetLogy()
     c.SetGrid()
     # title, axis,
     ltx = ROOT.TLatex()
     ltx.SetNDC()
-    title = '%d step' % step
+    title = '%s step' % step
+    ltx.DrawLatex(0.40, 0.93, title)
+    ltx.SetTextSize(0.025)
+    ltx.DrawLatex(0.85, 0.03, 'gluon-like')
+    ltx.DrawLatex(0.07, 0.03, 'quark-like')
+    c.Draw()
+    c.SaveAs(output_path)
+    c.Close()
+
+
+def draw_tr_vs_val(tr_path, val_path, step, path):
+    tr = ROOT.TFile(tr_path, "READ")
+    val = ROOT.TFile(val_path, "READ")
+    c = ROOT.TCanvas("c2", "", 800, 600)
+    for p in [tr.quark, tr.gluon, val.quark, val.gluon]:
+        p.Scale(1.0/p.GetEntries())
+        p.SetFillStyle(3001)
+    tr.quark.SetFillColorAlpha(2, 0.35)
+    tr.gluon.SetFillColorAlpha(4, 0.35)
+    val.quark.SetLineColor(2)
+    val.gluon.SetLineColor(4)
+    c.SetGrid()
+    tr.quark.Draw('hist')
+    tr.gluon.Draw('hist SAME')
+    val.quark.Draw('SAME')
+    val.gluon.Draw('SAME')
+    tr.quark.GetYaxis().SetRangeUser(0, 0.5)
+    c.BuildLegend( 0.75,  0.75,  0.88,  0.88).SetFillColor(0)
+    # title, axis,
+    ltx = ROOT.TLatex()
+    ltx.SetNDC()
+    title = '%s step' % step
     ltx.DrawLatex(0.40, 0.93, title)
     ltx.SetTextSize(0.025)
     ltx.DrawLatex(0.85, 0.03, 'gluon-like')
@@ -110,6 +141,7 @@ def draw_qg_histogram(tr_path, val_path, step, path):
     c.Draw()
     c.SaveAs(path)
     c.Close()
+
 
 
 def parse_qg_histogram_fname(path):
@@ -137,15 +169,20 @@ def draw_all_qg_histograms(qg_histogram_dir):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-
-    parser.add_argument("-d", "--dname", default='test_04')
-
+    parser.add_argument("-i", "--input_path", default='test_04')
+    parser.add_argument("-o", "--output_path", default='./plot.png')
     args = parser.parse_args()
 
-    log_dir = get_log_dir(dname=args.dname, creation=False)
+    step = os.path.split(args.input_path)[-1]
+    step = os.path.splitext(step)[0]
+    step = step.split('_')[-1]
 
-    draw_all_qg_histograms(qg_histogram_dir=log_dir.qg_histogram)
- 
+    draw_qg_histogram(
+        input_path=args.input_path,
+        step=step,
+        output_path=args.output_path,
+        log=True
+    )
 
 if __name__ == '__main__':
     main()
