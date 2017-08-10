@@ -37,16 +37,6 @@ class Directory(object):
 
 
 def get_log_dir(dname, creation=True, logs_dpath='./logs'):
-    # numbering
-    dlist = os.listdir('./logs')
-    dlist.sort()
-    if len(dlist) == 0:
-        dname = '%s_01' % dname
-    else:
-        latest_dir = dlist[-1]
-        latest_num = latest_dir.split('_')[-1]
-        latest_num = int(latest_num) + 1
-        dname = '%s_%s'% (dname, str(latest_num).zfill(2))
     dpath = os.path.join(logs_dpath, dname)
 
     # mkdir
@@ -78,6 +68,12 @@ def ckpt_parser(path, with_step=True):
             result.append(os.path.join(path, name))
         return result
 
+
+def get_ckpt_path(ckpt_list, step):
+    output = filter(lambda d: d['step'] == step, ckpt_list)
+    if len(output) != 1:
+       raise ValueError('')
+    return output[0]['path']
 
 def get_available_device(device_type=None):
     ''' ref. https://stackoverflow.com/questions/38559755/how-to-get-current-available-gpus-in-tensorflow '''

@@ -1,8 +1,8 @@
 import os
 import argparse
 import ROOT
-from utils import get_log_dir
 
+ROOT.gROOT.SetBatch(True)
 
 class QGHistogram(object):
     '''
@@ -24,27 +24,26 @@ class QGHistogram(object):
         self.quark_3 = ROOT.TH1F("Quark(nMatJets=3/%s)" % which_data_set,"", 100, 0, 1)
         self.gluon_3 = ROOT.TH1F("Gluon(nMatJets=3/%s)" % which_data_set,"", 100, 0, 1)
 
-        def fill(self, labels, preds, nMatchedJets):
-            for n, i in enumerate(labels.argmax(axis=1)):
-                gluon_likeness = preds[n, 1]
-                # gluon
-                if i:
-                    # all
-                    self.gluon_all.Fill(gluon_likeness)
+    def fill(self, labels, preds, nMatchedJets):
+        for n, i in enumerate(labels.argmax(axis=1)):
+            gluon_likeness = preds[n, 1]
+            # gluon
+            if i:
+                # all
+                self.gluon_all.Fill(gluon_likeness)
                 if nMatchedJets[n] == 2:
                     self.gluon_2.Fill(gluon_likeness)
                 elif nMatchedJets[n] == 3:
                     self.gluon_3.Fill(gluon_likeness)
-                # quark
-                else:
-                    # all
-                    self.quark_all.Fill(gluon_likeness)
+            # quark
+            else:
+                # all
+                self.quark_all.Fill(gluon_likeness)
                 if nMatchedJets[n] == 2:
                     self.quark_2.Fill(gluon_likeness)
                 elif nMatchedJets[n] == 3:
                     self.quark_3.Fill(gluon_likeness)
 
- 
     def save(self):
         writer = ROOT.TFile(self.root_path, 'RECREATE')
         # Overall
@@ -165,7 +164,7 @@ def draw_all_qg_histograms(qg_histogram_dir):
             raise ValueError(':p')
         fname = 'step_%d.png' % step
         output_path = os.path.join(qg_histogram_dir.path, fname)
-        draw_qg_histogram(tr_path, val_path, step, output_path)
+        draw_qg_histogram(input_path=val_path, step=step, output_path=output_path, log=True)
 
 def main(argv=None):
     parser = argparse.ArgumentParser()

@@ -126,7 +126,7 @@ def root_to_np(input_path,
     return below, above
 
 
-def pt_binning(dataset, minimum=0.0, maximum=np.inf):
+def pT_binning(dataset, minimum=0.0, maximum=np.inf):
     condition = np.logical_and(
         dataset['pT'] < maximum,
         dataset['pT'] > minimum
@@ -137,11 +137,11 @@ def pt_binning(dataset, minimum=0.0, maximum=np.inf):
     new_dataset = {}
 
     for k in dataset.keys():
-        if isinstance(dataset[k], list):
+        if isinstance(dataset[k], np.ndarray):
             new_dataset[k] = dataset[k][indices]
 
     new_dataset['eta_range'] = dataset['eta_range']
-    new_dataset['pT_range'] = '%d-%d' % (minimum, maximum)
+    new_dataset['pT_range'] = '%.1f-%.1f' % (minimum, maximum)
 
     return new_dataset
 
@@ -242,8 +242,14 @@ def main():
         dataset_list.append(ds)
     else:
         below, above = root_to_np(input_path=FLAGS.input_path, eta_threshold=FLAGS.eta_threshold)
-        dataset_list.append(below)
-        dataset_list.append(above)
+        below_0_to_100 = pT_binning(dataset=below, minimum=0.0, maximum=100.0)
+        below_100_to_inf = pT_binning(dataset=below, minimum=100.0, maximum=np.inf)
+        above_0_to_100 = pT_binning(dataset=above, minimum=0.0, maximum=100.0)
+        above_100_to_inf = pT_binning(dataset=above, minimum=100.0, maximum=np.inf)
+        dataset_list.append(below_0_to_100)
+        dataset_list.append(below_100_to_inf)
+        dataset_list.append(above_0_to_100)
+        dataset_list.append(above_100_to_inf)
 
     for ds in dataset_list:
         split_n_save(ds, generator='pythia')

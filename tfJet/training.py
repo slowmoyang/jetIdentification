@@ -8,7 +8,7 @@ import time
 import tensorflow as tf
 import pandas as pd
 
-from zoo import vgg8_gap as inference
+from zoo import maxout_network as inference
 import model
 from pipeline import inputs
 from utils import get_log_dir
@@ -71,8 +71,11 @@ def train(tfrecords_path,
                 duration = time.time() - start_time
                 benchmark.loc[step] = {'training_time': duration}
 
+
+                save_freq = 100 if ( 4500 < step < 6500 ) else 1000
+
                 # write summary and print loss
-                if step % 100 == 0:
+                if step % save_freq == 0:
                     # Record execution stats
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
@@ -85,7 +88,6 @@ def train(tfrecords_path,
                     writer.add_run_metadata(run_metadata, 'step%d' % step)
                     print('Step %d: loss = %.2f, accuracy = %.3f (%.3f sec)' % (step, loss_value, acc_value, duration))
             
-                if step % 1000 == 0:
                     ckpt_path = os.path.join(ckpt_dir, 'step')
                     saver.save(sess, ckpt_path, global_step=step)
                 step += 1
@@ -115,13 +117,13 @@ def main(argv=None):
     tf.app.flags.DEFINE_float('initial_lr', 0.001, 'ininital learning rate')
     tf.app.flags.DEFINE_float('dropout_prob', 0.5, 'the probability of dropout')
 
-    log_dir = get_log_dir(dname='test', creation=True)
+    logdir = get_log_dir('test', creation=True)
 
     train(
         tfrecords_path=FLAGS.training_data,
-        tfevents_dir=log_dir.tfevents.training.path,
-        ckpt_dir=log_dir.ckpt.path,
-        benchmark_path=log_dir.path,
+        tfevents_dir=logdir.tfevents.training.path,
+        ckpt_dir=logdir.ckpt.path,
+        benchmark_path=logdir.path,
         batch_size=FLAGS.batch_size,
         num_epochs=FLAGS.num_epochs,
         initial_lr=FLAGS.initial_lr,

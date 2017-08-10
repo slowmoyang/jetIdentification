@@ -4,13 +4,15 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-from zoo import vgg8_gap as inference
+from zoo import maxout_network as inference
 import model
 from pipeline import inputs
 from eval_utils import ROC
 from qg_histogram import QGHistogram
 from vis_cnn import visualize_kernels
 from utils import ckpt_parser
+from utils import get_log_dir
+from qg_histogram import draw_all_qg_histograms
 
 
 def eval_once(ckpt_path,
@@ -84,8 +86,7 @@ def evaluate(log_dir,
 
     ckpt_list = ckpt_parser(log_dir.ckpt.path)
     for ckpt in ckpt_list:
-
-        subdname = 'step_%s' % str(ckpt['step'].zfill(6))
+        subdname = 'step_%s' % str(ckpt['step']).zfill(6)
         log_dir.tfevents.make_subdir(subdname)
         subd = getattr(log_dir.tfevents, subdname)
         subd.make_subdir('training')
@@ -114,14 +115,35 @@ def evaluate(log_dir,
 
 
 def main():
-    ckpt_list = ckpt_parser(log_dir.ckpt.path)
-    eval_once(
-        training_step=ckpt['step'],
-        ckpt_path=ckpt['path'],
-        tfrecords_path=validation_data,
-        tfevents_dir=subd.validation.path,
-        is_training_data=False,
-        roc_dir=log_dir.roc.validation.path,
-        qg_histogram_dir=log_dir.qg_histogram.validation.path,
+    FLAGS = tf.app.flags.FLAGS
+    tf.app.flags.DEFINE_string(
+        'training_data',
+        #    '../data/jet_pT-ALL_eta-below_2.4_pythia/tfrecords/jet_training_7896.tfrecords',
+        '../data/jet_pT-ALL_eta-below_2.4_pythia/tfrecords/jet_training_1111518.tfrecords',
+        'the training data set'
     )
-   
+    tf.app.flags.DEFINE_string(
+        'validation_data',
+        #    '../data/jet_pT-ALL_eta-below_2.4_pythia/tfrecords/jet_validation_2632.tfrecords',
+        '../data/jet_pT-ALL_eta-below_2.4_pythia/tfrecords/jet_validation_370506.tfrecords',
+        'the validation data set'
+    )
+    tf.app.flags.DEFINE_string(
+        'dname',
+        'maxout_test',
+        'the name of directory having TF checkpoint files..'
+    )
+
+    log_dir = get_log_dir(dname='maxout_test', creation=False)
+
+    evaluate(
+        training_data=FLAGS.training_data,
+        validation_data=FLAGS.validation_data,
+        log_dir=log_dir
+    )
+
+    draw_all_qg_histograms(qg_histogram_dir=log_dir.qg_histogram)
+
+
+if __name__ == '__main__':
+    main()

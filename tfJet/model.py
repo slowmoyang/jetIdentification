@@ -64,6 +64,21 @@ def loss(logits, labels, DW=False):
     tf.summary.scalar('loss', loss)
     return loss
 
+# the loss function for the weakly supervised classification
+def loss_wsc(logits, y):
+    '''
+
+    :param logits:
+    :param y: the portion of events in either class
+    :return:
+    '''
+    with tf.name_scope('loss'):
+        mean_gluon_prob_logits = tf.reduce_mean(logits[:, 1])
+        
+
+
+
+
 def l2_weight_decay(weight_decay_rate):
     '''ref. https://github.com/tensorflow/models/blob/master/resnet/resnet_model.py ''' 
     costs = []
