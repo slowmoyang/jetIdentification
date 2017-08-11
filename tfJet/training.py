@@ -40,6 +40,7 @@ def train(tfrecords_path,
             keep_prob = tf.placeholder(tf.float32)
 
         # Build a Graph that computes the logits predictions from the inference model.
+        # logits = zoo.__dict__[model_name](dataset['image'], keep_prob)
         logits = inference(dataset['image'], keep_prob)
         # Bulid a Graph that computes the softmax predictions
         # to computes ROC curves.

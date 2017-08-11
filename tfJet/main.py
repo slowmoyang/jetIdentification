@@ -24,6 +24,11 @@ tf.app.flags.DEFINE_string(
     '../data/jet_pT-ALL_eta-below_2.4_pythia/tfrecords/jet_validation_370506.tfrecords',
     'the validation data set'
 )
+tf.app.flags.DEFINE_string(
+    'log_dir',
+    'log_%s'%time.asctime(),
+    '',
+)
 
 
 tf.app.flags.DEFINE_integer('batch_size', 1000, 'batch size')
@@ -31,7 +36,7 @@ tf.app.flags.DEFINE_integer('num_epochs', 30, 'the number of epochs')
 tf.app.flags.DEFINE_float('initial_lr', 0.001, 'ininital learning rate')
 tf.app.flags.DEFINE_float('dropout_prob', 0.5, 'the probability of dropout')
 
-log_dir = get_log_dir(dname='maxout_test', creation=True)
+log_dir = get_log_dir(dname=FLAGS.log_dir, creation=True)
 
 log_file_path = os.path.join(log_dir.path, 'log.txt')
 log = open(log_file_path, 'w')
@@ -39,7 +44,7 @@ log = open(log_file_path, 'w')
 # ENVIRONMENT
 log.write('Test Date: %s' % time.asctime())
 log.write('Training Data: %s\n' % FLAGS.training_data)
-log.write('Validation Data: %s\n' % FLAGS.validaiton_data)
+log.write('Validation Data: %s\n' % FLAGS.validation_data)
 log.write('model: %s\n' % 'temp')
 log.write('optimizer: %s\n' % 'Adam')
 # CONSTANT
