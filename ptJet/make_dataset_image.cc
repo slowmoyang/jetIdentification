@@ -1,8 +1,11 @@
-void macro(const char* input_path,
-           const char* output_path){
+#include "utils.cc"
+
+
+void make_dataset(const char* input_path){
 
     auto input_file = new TFile(input_path, "READ");
     auto input_jet = (TTree*) input_file->Get("jetAnalyser/jetAnalyser");
+    const int input_entries = input_jet->GetEntries();
 
     int partonId, nMatchedJets;
     float pt,eta;
@@ -20,9 +23,18 @@ void macro(const char* input_path,
     input_jet->SetBranchAddress("dau_dphi",        &dau_dphi);
     input_jet->SetBranchAddress("dau_charge",      &dau_charge);
 
-    auto output_file = new TFile(output_path, "RECREATE");
-    auto output_jet = new TTree("jet", "jet");
-    output_jet->SetDirectory(output_file);
+
+    std::string temp_dir = "$JET/ptJet/data/temp";
+    exec_mkdir(temp_dir);
+
+    std::stringstream ss;
+    ss << string(temp_dir) << "/" << "dataset.root";
+    const char* temp_path = ss.str().c_str();
+    ss.str("");
+
+    auto output_file = new TFile(temp_path, "RECREATE");
+    auto output_tree = new TTree("jet", "jet");
+    output_tree->SetDirectory(output_file);
 
     // constant
     const int channel = 3;
@@ -35,14 +47,13 @@ void macro(const char* input_path,
     float image[3267];
     int label[2];
 
-    output_jet->Branch("image",           &image,           "image[3267]/F");
-    output_jet->Branch("label",           &label,           "label[2]/I");
-    output_jet->Branch("partonId",        &partonId,        "partonId/I");
-    output_jet->Branch("nMatchedJets",    &nMatchedJets,    "nMatchedJets/I");
-    output_jet->Branch("pt",              &pt,              "pt/F");
-    output_jet->Branch("eta",             &eta,             "eta/F");
+    output_tree->Branch("image",           &image,           "image[3267]/F");
+    output_tree->Branch("label",           &label,           "label[2]/I");
+    output_tree->Branch("partonId",        &partonId,        "partonId/I");
+    output_tree->Branch("nMatchedJets",    &nMatchedJets,    "nMatchedJets/I");
+    output_tree->Branch("pt",              &pt,              "pt/F");
+    output_tree->Branch("eta",             &eta,             "eta/F");
 
-    int input_entries = input_jet->GetEntries();
     for(auto j=0; j < input_entries; ++j){
         input_jet->GetEntry(j);
         if(j%1000==0)
@@ -88,12 +99,21 @@ void macro(const char* input_path,
             }
         }
 
-        output_jet->SetDirectory(output_file);
-        output_jet->Fill();
+        output_tree->SetDirectory(output_file);
+        output_tree->Fill();
     }
 
-    output_jet->SetDirectory(output_file);
-    output_jet->Write();
-    output_file->Close();
-}
+    int output_entries = output_tree->GetEntries();
 
+    output_tree->SetDirectory(output_file);
+    output_tree->Write();
+    output_file->Close();
+
+    // output_dir
+    ss << "$JET/ptJet/data/dataset_image_" << std::to_string(output_entries);
+    std::string output_dir = ss.str();
+    ss.str("");
+
+    // rename directory
+    exec_mv(temp_dir, output_dir);
+}
