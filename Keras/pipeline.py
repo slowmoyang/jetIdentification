@@ -7,36 +7,85 @@ import numpy as np
 
 
 class DataLoader(object):
-    def __init__(self, path, batch_size, key="jet"):
-        self._batch_size = batch_size
+    def __init__(self, path, batch_size, cyclic, image_shape=(3, 33, 33)):
+        self.path = path
+        self.batch_size = batch_size
+        self.cyclic = cyclic
+        self._image_shape = image_shape
         
-        self.root_file = ROOT.TFile.Open(path)
-        self.tree = self.root_file.Get(key)
-        self._num_total_example = int(self.tree.GetEntries())
+        self.root_file = ROOT.TFile(path, "READ")
+        self.tree = self.root_file.Get("jet")
+        
+        self._start = 0
         
     def __len__(self):
-        return self._num_total_example
+        return int(self.tree.GetEntries())
     
-    def __iter__(self):
-        return self
-    
-    def next(self):
-        while True:
-            for start in xrange(0, self._num_total_example, self._batch_size):
-                x = []
-                y = []
-                for idx in xrange(start, start+self._batch_size):
-                    self.tree.GetEntry(idx)
-                    x.append(
-                        np.array(self.tree.image, dtype=np.float32).reshape(3, 33, 33))
-                    y.append(np.int64(self.tree.label[1]))
-                x = np.array(x)
-                y = np.array(y)
-                return (x, y)
-        self.root_file.Close()
+    def _get_data(self, idx):
+        self.tree.GetEntry(idx)
+        image = np.array(self.tree.image, dtype=np.float32)
+        image = np.reshape(image, self._image_shape)
+        label = np.int64(self.tree.label[1])
+        return (image, label)
         
+    
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            if key < 0 or key >= len(self):
+                raise IndexError
+            return self._get_data(key)
+        elif isinstance(key, slice):
+            x = []
+            y = []
+            for idx in xrange(*key.indices(len(self))):
+                image, label = self._get_data(idx)
+                x.append(image)
+                y.append(label)
+            x = np.array(x)
+            y = np.array(y)
+            return (x, y)
+        else:
+            raise TypeError
+            
+    def next(self):
+        if self.cyclic:
+            if self._start + 1 < len(self):
+                end = self._start + self.batch_size
+                slicing = slice(self._start, end)
+                if end <= len(self):
+                    self._start = end
+                    return self[slicing]
+                else:
+                    x, y = self[slicing]
+                    
+                    self._start = 0
+                    end = end - len(self)
+
+                    x1, y1 = self[slice(self._start, end)]
+                    self._start = end
+                    
+                    np.append(x, x1, axis=0)
+                    np.append(y, y1, axis=0)
+                    return x, y
+            else:
+                self._start = 0
+                return self.next()
+        else:
+            if self._start + 1 < len(self):
+                end = self._start + self.batch_size
+                slicing = slice(self._start, end)
+                self._start = end
+                return self[slicing]
+            else:
+                raise StopIteration
+                
     def __next__(self):
         return self.next()
+
+    def __iter__(self):
+        for start in xrange(0, len(self), self.batch_size): 
+            yield self[slice(start, start+self.batch_size)]
+       
 
 def generate_from_root_file(path, key="jet", batch_size=100):
     root_file = ROOT.TFile(path, "READ")
@@ -47,6 +96,8 @@ def generate_from_root_file(path, key="jet", batch_size=100):
             x = []
             y = []
             for idx in xrange(start, start+batch_size):
+                if idx >= num_total_example:
+                    continue
                 tree.GetEntry(idx)
                 x.append(
                     np.array(tree.image, dtype=np.float32).reshape(3, 33, 33))
@@ -57,45 +108,3 @@ def generate_from_root_file(path, key="jet", batch_size=100):
     root_file.Close()
 
 
-def _non_cyclic_data_loader(path, batch_size, key):
-    root_file = ROOT.TFile(path, "READ")
-    tree = root_file.Get(key)
-    num_total_example = tree.GetEntries()
-    for start in xrange(0, num_total_example, batch_size):
-        x = []
-        y = []
-        for idx in xrange(start, start+batch_size):
-            tree.GetEntry(idx)
-            x.append(
-                np.array(tree.image, dtype=np.float32).reshape(3, 33, 33))
-            y.append(np.int64(tree.label[1]))
-        x = np.array(x)
-        y = np.array(y)
-        yield (x, y)
-    root_file.Close()
-
-def _cyclic_data_loader(path, batch_size, key):
-    root_file = ROOT.TFile(path, "READ")
-    tree = root_file.Get(key)
-    num_total_example = tree.GetEntries()
-    while True:
-        for start in xrange(0, num_total_example, batch_size):
-            x = []
-            y = []
-            for idx in xrange(start, start+batch_size):
-                tree.GetEntry(idx)
-                x.append(
-                    np.array(tree.image, dtype=np.float32).reshape(3, 33, 33))
-                y.append(np.int64(tree.label[1]))
-            x = np.array(x)
-            y = np.array(y)
-            yield (x, y)
-    root_file.Close()
-
-
-
-def make_data_loader(path, batch_size, cyclic, key="jet"):
-    if cyclic:
-        return _cyclic_data_loader(path=path, batch_size=batch_size, key=key)
-    else:
-        return _non_cyclic_data_loader(path=path, batch_size=batch_size, key=key)
