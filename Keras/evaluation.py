@@ -24,7 +24,7 @@ from keras.utils import multi_gpu_model
 #import keras.backend as K
 
 from models import add_an_sigmoid_layer
-from pipeline import make_data_loader
+from pipeline import DataLodaer
 
 #from custom_losses import binary_cross_entropy_with_logits
 #from custom_metrics import accuracy_with_logits
@@ -55,7 +55,7 @@ def evaluate(saved_model_path,
         dname_list=["train", "test_dijet", "test_zjet"])
 
     # on training data
-    train_data_loader = make_data_loader(
+    train_data_loader = DataLodaer(
         path=train_data,
         batch_size=1000,
         cyclic=False)
@@ -65,7 +65,7 @@ def evaluate(saved_model_path,
         out_hist.fill(dname="train", labels=y, preds=preds)
 
     # Test on dijet dataset
-    test_dijet_loader = make_data_loader(
+    test_dijet_loader = DataLodaer(
         path=test_dijet_data,
         batch_size=1000,
         cyclic=False)
@@ -86,7 +86,7 @@ def evaluate(saved_model_path,
     roc_dijet.finish()
 
     # Test on Z+jet dataset
-    test_zjet_loader = make_data_loader(
+    test_zjet_loader = DataLodaer(
         path=test_zjet_data,
         batch_size=1000,
         cyclic=False)

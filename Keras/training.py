@@ -20,7 +20,7 @@ from keras.utils import multi_gpu_model
 
 import keras.backend as K
 
-from pipeline import make_data_loader
+from pipeline import DataLodaer
 
 from models import (
     build_a_cnn_stem,
@@ -83,16 +83,21 @@ def main():
         metrics=metric_list
     )
 
+    # data loader
+    train_loader = DataLodaer(
+        path=train_data,
+        batch_size=args.train_batch_size,
+        cyclic=False)
 
-    steps_per_epoch=np.ceil(653434/500).astype(int)
+    steps_per_epoch = np.ceil( len(train_loader) / train_loader.batch_size ).astype(int)
     total_step = args.num_epochs * steps_per_epoch
 
-    val_dijet_loader = make_data_loader(
+    val_dijet_loader = DataLodaer(
         path=val_dijet_data,
         batch_size=args.val_batch_size,
         cyclic=True)
 
-    val_zjet_loader = make_data_loader(
+    val_zjet_loader = DataLodaer(
         path=val_zjet_data,
         batch_size=args.val_batch_size,
         cyclic=True)
@@ -128,11 +133,7 @@ def main():
         print("Epoch [{epoch}/{num_epochs}]".format(
             epoch=(epoch+1), num_epochs=args.num_epochs))
 
-        # data loader
-        train_loader = make_data_loader(
-            path=train_data,
-            batch_size=args.train_batch_size,
-            cyclic=False)
+
         for x_train, y_train in train_loader:
 
             # Validate model
