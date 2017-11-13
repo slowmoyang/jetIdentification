@@ -39,3 +39,41 @@ def get_saved_model_paths(dpath):
     saved_models = map(foo, saved_models)
     return saved_models
     
+
+def write_args_to_json_file(args, log_dir):
+    args_dict = vars(args)
+
+    path = os.path.join(log_dir, "args.json")
+    with open(path, "w") as f:
+        json.dump(args_dict, f, indent=4, sort_keys=True)
+
+
+class Logger(object):
+    def __init__(self, dpath, mode="write"):
+        self.path = os.path.join(dpath, "args.json")
+        self._mode = mode.lower()
+        if self._mode == "write":
+            self.log = {}
+        elif self._mode == "read":
+            self.log = self.load(self.path)
+
+    def get_args(self, args):
+        self.log.update(vars(args))
+
+    def __setitem__(self, key, item):
+        self.log[key] = item
+
+    def __getitem__(self, key):
+        return self.log[key]
+
+    def save(self):
+        with open(self.path, "w") as f:
+            json.dump(self.foo, f, indent=4, sort_keys=True)
+
+    def load(self):
+        log = open(self.path).read()
+        log = json.loads(log)
+        self.log = dict(log)
+
+    def finish(self):
+        self.save() 
