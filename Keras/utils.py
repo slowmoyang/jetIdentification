@@ -68,12 +68,13 @@ class Logger(object):
 
     def save(self):
         with open(self.path, "w") as f:
-            json.dump(self.foo, f, indent=4, sort_keys=True)
+            json.dump(self.log, f, indent=4, sort_keys=True)
 
-    def load(self):
-        log = open(self.path).read()
+    def load(self, path):
+        log = open(path).read()
         log = json.loads(log)
-        self.log = dict(log)
+        log = dict(log)
+        return log
 
     def finish(self):
         self.save() 
