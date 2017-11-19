@@ -6,6 +6,9 @@ import os
 import datetime
 import json
 
+
+from tensorflow.python.client import device_lib
+
 class Directory(object):
     def __init__(self, path, creation=True):
         self.path = path
@@ -78,3 +81,10 @@ class Logger(object):
 
     def finish(self):
         self.save() 
+
+
+
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
